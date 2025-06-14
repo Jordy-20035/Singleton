@@ -26,7 +26,7 @@ def test_logging_methods(capsys):
     logger.log_warning("Warning message")
     logger.log_error("Error message")
 
-    # Flush handlers to ensure logs are written
+    # Обработчики промывки для обеспечения записи журналов
     for handler in logger.logger.handlers:
         handler.flush()
         handler.close()
@@ -34,8 +34,6 @@ def test_logging_methods(capsys):
     
     time.sleep(0.1)
 
-    # print("Files in tmp_path:", os.listdir(tmp_path))
-    # assert log_file.exists(), "Log file was not created"
 
     captured = capsys.readouterr()
     assert "Info message" in captured.err
