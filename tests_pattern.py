@@ -3,6 +3,7 @@ from unittest.mock import patch, MagicMock
 from pattern_impl import Logger
 from unittest.mock import patch
 import logging
+import time
 
 
 
@@ -16,6 +17,7 @@ def test_singleton_instance():
 def test_logging_methods(tmp_path):
     log_file = tmp_path / "app.log"
     log_file.parent.mkdir(parents=True, exist_ok=True) 
+    Logger._instance = None  # Сброс синглтона для изоляции теста
     logger = Logger(str(log_file))
     logger.log_info("Info message")
     logger.log_warning("Warning message")
@@ -24,6 +26,11 @@ def test_logging_methods(tmp_path):
     # Flush handlers to ensure logs are written
     for handler in logger.logger.handlers:
         handler.flush()
+        handler.close()
+    logger.logger.handlers.clear()  # Очистка, чтобы не мешать другим тестам
+    time.sleep(0.1)
+
+    assert log_file.exists(), "Log file was not created"
 
     content = log_file.read_text()
     assert "Info message" in content
@@ -31,33 +38,34 @@ def test_logging_methods(tmp_path):
     assert "Error message" in content
 
 def test_invalid_log_file():
-    # Reset singleton instance for isolated test
+    # Сброс экземпляра синглтона для изолированного теста
     Logger._instance = None
     with pytest.raises(ValueError):
-        Logger("")  # Empty string invalid
+        Logger("")  # Пустая строка недействительна
 
     Logger._instance = None
     with pytest.raises(ValueError):
-        Logger(None)  # None invalid
+        Logger(None)  # Нет недействительных
 
 
 def test_logger_with_mock_filehandler():
     Logger._instance = None  # Сброс синглтона
 
     real_file_handler = MagicMock()
-    real_file_handler.level = 20  # Установим уровень, чтобы избежать TypeError
+    real_file_handler.level = logging.INFO  # Уровень должен быть int
 
     with patch("pattern_impl.logging.FileHandler", return_value=real_file_handler) as mock_file_handler:
         logger = Logger("mock.log")
         logger.log_info("Test message")
 
-        mock_file_handler.assert_called_with("mock.log")
+        mock_file_handler.assert_called_once_with("mock.log")
         real_file_handler.setFormatter.assert_called()
+
 
 def test_thread_safety(tmp_path):
     import threading
 
-    Logger._instance = None  # Reset singleton
+    Logger._instance = None  # Сбросить синглтон
 
     log_file = tmp_path / "thread.log"
     instances = []
@@ -72,7 +80,7 @@ def test_thread_safety(tmp_path):
     for t in threads:
         t.join()
 
-    # All instances must be the same
+    # Все экземпляры должны быть одинаковыми
     first = instances[0]
     assert all(inst is first for inst in instances)
     assert first.get_log_file() == str(log_file)
